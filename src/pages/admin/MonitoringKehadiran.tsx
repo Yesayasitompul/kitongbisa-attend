@@ -1,14 +1,40 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { AlertTriangle, Gavel, Send } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-const MONITORING_DATA = [
-  { name: "Andi Pratama", masuk: "07:55", pulang: "16:05", status: "hadir" },
-  { name: "Dewi Lestari", masuk: "08:15", pulang: "-", status: "terlambat" },
-  { name: "Budi Cahyo", masuk: "07:50", pulang: "16:10", status: "hadir" },
-  { name: "Rina Sari", masuk: "-", pulang: "-", status: "cuti" },
-  { name: "Fajar Nugroho", masuk: "08:30", pulang: "-", status: "terlambat" },
-  { name: "Maya Putri", masuk: "08:00", pulang: "-", status: "hadir" },
+interface Employee {
+  name: string;
+  masuk: string;
+  pulang: string;
+  status: string;
+  totalTerlambat: number;
+  totalAbsen: number;
+}
+
+const MONITORING_DATA: Employee[] = [
+  { name: "Andi Pratama", masuk: "07:55", pulang: "16:05", status: "hadir", totalTerlambat: 2, totalAbsen: 0 },
+  { name: "Dewi Lestari", masuk: "08:15", pulang: "-", status: "terlambat", totalTerlambat: 5, totalAbsen: 1 },
+  { name: "Budi Cahyo", masuk: "07:50", pulang: "16:10", status: "hadir", totalTerlambat: 1, totalAbsen: 0 },
+  { name: "Rina Sari", masuk: "-", pulang: "-", status: "absen", totalTerlambat: 0, totalAbsen: 7 },
+  { name: "Fajar Nugroho", masuk: "08:30", pulang: "-", status: "terlambat", totalTerlambat: 6, totalAbsen: 0 },
+  { name: "Maya Putri", masuk: "08:00", pulang: "-", status: "hadir", totalTerlambat: 1, totalAbsen: 0 },
+];
+
+const BATAS_PELANGGARAN = 5; // Threshold for sanctions
+
+const JENIS_SANKSI = [
+  { value: "teguran_lisan", label: "Teguran Lisan" },
+  { value: "teguran_tertulis", label: "Teguran Tertulis" },
+  { value: "sp1", label: "Surat Peringatan 1" },
+  { value: "sp2", label: "Surat Peringatan 2" },
+  { value: "sp3", label: "Surat Peringatan 3" },
 ];
 
 const statusColor: Record<string, string> = {
@@ -19,6 +45,33 @@ const statusColor: Record<string, string> = {
 };
 
 const MonitoringKehadiran = () => {
+  const { toast } = useToast();
+  const [sanksiDialog, setSanksiDialog] = useState(false);
+  const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
+  const [jenisSanksi, setJenisSanksi] = useState("");
+  const [catatanSanksi, setCatatanSanksi] = useState("");
+
+  const isPelanggaran = (emp: Employee) => (emp.totalTerlambat + emp.totalAbsen) >= BATAS_PELANGGARAN;
+
+  const handleOpenSanksi = (emp: Employee) => {
+    setSelectedEmp(emp);
+    setJenisSanksi("");
+    setCatatanSanksi("");
+    setSanksiDialog(true);
+  };
+
+  const handleSimpanSanksi = () => {
+    if (!jenisSanksi) {
+      toast({ title: "Pilih jenis sanksi", variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Sanksi Berhasil Disimpan",
+      description: `${JENIS_SANKSI.find(s => s.value === jenisSanksi)?.label} untuk ${selectedEmp?.name} telah disimpan. Notifikasi telah dikirim ke pegawai.`,
+    });
+    setSanksiDialog(false);
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-foreground">Monitoring Kehadiran</h1>
@@ -52,19 +105,92 @@ const MonitoringKehadiran = () => {
 
       <div className="space-y-2">
         {MONITORING_DATA.map((emp, i) => (
-          <Card key={i}>
-            <CardContent className="flex items-center justify-between p-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">{emp.name}</p>
-                <p className="text-xs text-muted-foreground">Masuk: {emp.masuk} | Pulang: {emp.pulang}</p>
+          <Card key={i} className={isPelanggaran(emp) ? "ring-2 ring-destructive/30" : ""}>
+            <CardContent className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{emp.name}</p>
+                  <p className="text-xs text-muted-foreground">Masuk: {emp.masuk} | Pulang: {emp.pulang}</p>
+                </div>
+                <Badge variant="outline" className={statusColor[emp.status]}>
+                  {emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}
+                </Badge>
               </div>
-              <Badge variant="outline" className={statusColor[emp.status]}>
-                {emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}
-              </Badge>
+
+              {/* Rekap pelanggaran */}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>Terlambat: <strong className="text-warning">{emp.totalTerlambat}x</strong></span>
+                <span>Absen: <strong className="text-destructive">{emp.totalAbsen}x</strong></span>
+              </div>
+
+              {/* Tombol sanksi jika melebihi batas */}
+              {isPelanggaran(emp) && (
+                <div className="flex items-center gap-2 pt-1">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                  <span className="text-xs text-destructive font-medium">Pelanggaran melebihi batas</span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="ml-auto gap-1 h-7 text-xs"
+                    onClick={() => handleOpenSanksi(emp)}
+                  >
+                    <Gavel className="h-3 w-3" />
+                    Beri Sanksi
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Dialog Pemberian Sanksi */}
+      <Dialog open={sanksiDialog} onOpenChange={setSanksiDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pemberian Sanksi</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-sm font-semibold text-foreground">{selectedEmp?.name}</p>
+              <p className="text-xs text-muted-foreground">
+                Terlambat: {selectedEmp?.totalTerlambat}x | Absen: {selectedEmp?.totalAbsen}x
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Jenis Sanksi</Label>
+              <Select value={jenisSanksi} onValueChange={setJenisSanksi}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih jenis sanksi" />
+                </SelectTrigger>
+                <SelectContent>
+                  {JENIS_SANKSI.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Catatan</Label>
+              <Textarea
+                placeholder="Tulis catatan sanksi..."
+                value={catatanSanksi}
+                onChange={(e) => setCatatanSanksi(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSanksiDialog(false)}>Batal</Button>
+            <Button onClick={handleSimpanSanksi} className="gap-1">
+              <Send className="h-4 w-4" />
+              Simpan & Kirim Notifikasi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

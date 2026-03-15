@@ -1,10 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, LogIn, LogOut, MapPin, CheckCircle2 } from "lucide-react";
+import { Clock, LogIn, LogOut, MapPin, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const JADWAL_KERJA = {
+  jamMasuk: "08:00",
+  jamPulang: "16:00",
+  lokasi: "Kantor Yayasan Kitongbisa",
+};
 
 const PegawaiDashboard = () => {
   const { user } = useAuth();
@@ -12,23 +18,53 @@ const PegawaiDashboard = () => {
   const [clockedIn, setClockedIn] = useState(false);
   const [clockInTime, setClockInTime] = useState<string | null>(null);
   const [clockOutTime, setClockOutTime] = useState<string | null>(null);
+  const [status, setStatus] = useState<"belum" | "hadir" | "terlambat">("belum");
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-  const dateStr = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  // Live clock
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const timeStr = currentTime.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const dateStr = currentTime.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  const checkTerlambat = (time: Date): boolean => {
+    const [jam, menit] = JADWAL_KERJA.jamMasuk.split(":").map(Number);
+    const batasMasuk = new Date(time);
+    batasMasuk.setHours(jam, menit, 0, 0);
+    return time > batasMasuk;
+  };
 
   const handleClockIn = () => {
-    const t = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const now = new Date();
+    const t = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const isTerlambat = checkTerlambat(now);
+
     setClockInTime(t);
     setClockedIn(true);
-    toast({ title: "Absensi Masuk Berhasil", description: `Tercatat masuk pukul ${t}` });
+    setStatus(isTerlambat ? "terlambat" : "hadir");
+
+    if (isTerlambat) {
+      toast({
+        title: "Absensi Masuk - Terlambat",
+        description: `Tercatat masuk pukul ${t}. Anda terlambat dari jadwal ${JADWAL_KERJA.jamMasuk}. Notifikasi telah dikirim ke HR.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Absensi Masuk Berhasil",
+        description: `Tercatat masuk pukul ${t}. Status: Hadir tepat waktu.`,
+      });
+    }
   };
 
   const handleClockOut = () => {
     const t = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     setClockOutTime(t);
     setClockedIn(false);
-    toast({ title: "Absensi Pulang Berhasil", description: `Tercatat pulang pukul ${t}` });
+    toast({ title: "Absensi Pulang Berhasil", description: `Tercatat pulang pukul ${t}. Data absensi telah disimpan.` });
   };
 
   return (
@@ -46,7 +82,24 @@ const PegawaiDashboard = () => {
           <p className="text-4xl font-bold tracking-tight">{timeStr}</p>
           <div className="flex items-center justify-center gap-1 text-sm opacity-80">
             <MapPin className="h-4 w-4" />
-            <span>Kantor Yayasan Kitongbisa</span>
+            <span>{JADWAL_KERJA.lokasi}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Jadwal Kerja Info */}
+      <Card>
+        <CardContent className="p-4">
+          <h3 className="text-sm font-semibold text-foreground mb-2">Jadwal Kerja Hari Ini</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-muted p-3 text-center">
+              <p className="text-xs text-muted-foreground">Jam Masuk</p>
+              <p className="text-lg font-bold text-foreground">{JADWAL_KERJA.jamMasuk}</p>
+            </div>
+            <div className="rounded-lg bg-muted p-3 text-center">
+              <p className="text-xs text-muted-foreground">Jam Pulang</p>
+              <p className="text-lg font-bold text-foreground">{JADWAL_KERJA.jamPulang}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -88,9 +141,19 @@ const PegawaiDashboard = () => {
           </div>
           {clockInTime && (
             <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="text-muted-foreground">Kehadiran tercatat</span>
-              <Badge variant="secondary" className="ml-auto">Hadir</Badge>
+              {status === "terlambat" ? (
+                <>
+                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  <span className="text-muted-foreground">Terlambat - Notifikasi dikirim ke HR</span>
+                  <Badge variant="outline" className="ml-auto bg-warning/10 text-warning border-warning/20">Terlambat</Badge>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <span className="text-muted-foreground">Kehadiran tercatat</span>
+                  <Badge variant="secondary" className="ml-auto">Hadir</Badge>
+                </>
+              )}
             </div>
           )}
         </CardContent>
