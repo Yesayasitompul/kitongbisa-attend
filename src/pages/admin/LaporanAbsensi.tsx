@@ -83,11 +83,11 @@ const LaporanAbsensi = () => {
     toast({ title: "Generating PDF...", description: "Laporan sedang dibuat dalam format PDF." });
 
     // Save laporan record to DB
-    await supabase.from("laporan").insert({
+    await supabase.from("laporan").insert([{
       periode: periode === "harian" ? "Harian" : `Bulanan - Bulan ${bulan}`,
       dibuat_oleh: user?.id,
-      data: periode === "bulanan" ? reportData : dailyData,
-    });
+      data: (periode === "bulanan" ? reportData : dailyData) as any,
+    }]);
 
     setTimeout(() => {
       const printWindow = window.open("", "_blank");
