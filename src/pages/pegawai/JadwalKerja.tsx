@@ -1,19 +1,56 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays } from "lucide-react";
 
-const SCHEDULE = [
-  { day: "Senin", shift: "Pagi", jam: "08:00 - 16:00", active: true },
-  { day: "Selasa", shift: "Pagi", jam: "08:00 - 16:00", active: true },
-  { day: "Rabu", shift: "Pagi", jam: "08:00 - 16:00", active: true },
-  { day: "Kamis", shift: "Pagi", jam: "08:00 - 16:00", active: true },
-  { day: "Jumat", shift: "Pagi", jam: "08:00 - 16:00", active: true },
-  { day: "Sabtu", shift: "Libur", jam: "-", active: false },
-  { day: "Minggu", shift: "Libur", jam: "-", active: false },
-];
+const HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+
+interface JadwalRow {
+  hari_kerja: string;
+  jam_masuk: string;
+  jam_pulang: string;
+}
 
 const JadwalKerja = () => {
+  const { user } = useAuth();
+  const [jadwalList, setJadwalList] = useState<JadwalRow[]>([]);
   const today = new Date().toLocaleDateString("id-ID", { weekday: "long" });
+
+  useEffect(() => {
+    if (!user?.pegawaiId) return;
+    const fetchJadwal = async () => {
+      const { data } = await supabase
+        .from("jadwal")
+        .select("hari_kerja, jam_masuk, jam_pulang")
+        .eq("pegawai_id", user.pegawaiId!);
+      if (data && data.length > 0) {
+        setJadwalList(data);
+      } else {
+        // Default schedule if none set
+        setJadwalList(
+          HARI.map(h => ({
+            hari_kerja: h,
+            jam_masuk: h === "Sabtu" || h === "Minggu" ? "-" : "08:00",
+            jam_pulang: h === "Sabtu" || h === "Minggu" ? "-" : "16:00",
+          }))
+        );
+      }
+    };
+    fetchJadwal();
+  }, [user?.pegawaiId]);
+
+  const schedule = HARI.map(h => {
+    const found = jadwalList.find(j => j.hari_kerja === h);
+    const active = found ? found.jam_masuk !== "-" : false;
+    return {
+      day: h,
+      shift: active ? "Pagi" : "Libur",
+      jam: active ? `${found!.jam_masuk.substring(0,5)} - ${found!.jam_pulang.substring(0,5)}` : "-",
+      active,
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -29,7 +66,7 @@ const JadwalKerja = () => {
       </Card>
 
       <div className="space-y-2">
-        {SCHEDULE.map((item) => (
+        {schedule.map((item) => (
           <Card key={item.day} className={today === item.day ? "ring-2 ring-primary" : ""}>
             <CardContent className="flex items-center justify-between p-4">
               <div>
