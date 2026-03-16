@@ -1,36 +1,70 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const RECAP = [
-  { name: "Andi Pratama", hadir: 22, terlambat: 2, absen: 1, score: 95 },
-  { name: "Dewi Lestari", hadir: 20, terlambat: 3, absen: 2, score: 88 },
-  { name: "Budi Cahyo", hadir: 23, terlambat: 1, absen: 1, score: 98 },
-  { name: "Rina Sari", hadir: 18, terlambat: 0, absen: 7, score: 72 },
-  { name: "Fajar Nugroho", hadir: 21, terlambat: 4, absen: 0, score: 90 },
-  { name: "Maya Putri", hadir: 22, terlambat: 1, absen: 2, score: 94 },
-];
+interface RecapRow {
+  name: string;
+  hadir: number;
+  terlambat: number;
+  absen: number;
+  score: number;
+}
 
 const scoreColor = (s: number) => s >= 90 ? "text-success" : s >= 75 ? "text-warning" : "text-destructive";
 
 const RekapKedisiplinan = () => {
+  const [recap, setRecap] = useState<RecapRow[]>([]);
+  const [bulan, setBulan] = useState("3");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const year = new Date().getFullYear();
+      const month = parseInt(bulan);
+      const startDate = `${year}-${month.toString().padStart(2, "0")}-01`;
+      const endDate = `${year}-${(month + 1).toString().padStart(2, "0")}-01`;
+
+      const { data: pegawaiList } = await supabase.from("pegawai").select("id, nama").eq("status", "aktif");
+      const { data: absensiData } = await supabase
+        .from("absensi")
+        .select("pegawai_id, status")
+        .gte("tanggal", startDate)
+        .lt("tanggal", endDate);
+
+      if (pegawaiList) {
+        const rows: RecapRow[] = pegawaiList.map(p => {
+          const records = absensiData?.filter(a => a.pegawai_id === p.id) || [];
+          const hadir = records.filter(r => r.status === "hadir").length;
+          const terlambat = records.filter(r => r.status === "terlambat").length;
+          const absen = records.filter(r => r.status === "absen").length;
+          const total = records.length || 1;
+          const score = Math.round((hadir / total) * 100);
+          return { name: p.nama, hadir, terlambat, absen, score };
+        }).sort((a, b) => b.score - a.score);
+        setRecap(rows);
+      }
+    };
+    fetchData();
+  }, [bulan]);
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-foreground">Rekap Kedisiplinan</h1>
 
-      <Select defaultValue="march">
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
+      <Select value={bulan} onValueChange={setBulan}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="january">Januari 2026</SelectItem>
-          <SelectItem value="february">Februari 2026</SelectItem>
-          <SelectItem value="march">Maret 2026</SelectItem>
+          <SelectItem value="1">Januari 2026</SelectItem>
+          <SelectItem value="2">Februari 2026</SelectItem>
+          <SelectItem value="3">Maret 2026</SelectItem>
         </SelectContent>
       </Select>
 
       <div className="space-y-2">
-        {RECAP.sort((a, b) => b.score - a.score).map((emp, i) => (
+        {recap.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-8">Belum ada data</p>
+        )}
+        {recap.map((emp, i) => (
           <Card key={i}>
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
