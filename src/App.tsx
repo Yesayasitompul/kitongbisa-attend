@@ -18,11 +18,20 @@ import PimpinanDashboard from "@/pages/pimpinan/PimpinanDashboard";
 import RekapKedisiplinan from "@/pages/pimpinan/RekapKedisiplinan";
 import EvaluasiPegawai from "@/pages/pimpinan/EvaluasiPegawai";
 import NotFound from "./pages/NotFound";
+import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
