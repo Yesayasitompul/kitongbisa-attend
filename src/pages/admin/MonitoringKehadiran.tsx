@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { AlertTriangle, Gavel, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface Employee {
+interface EmployeeMonitor {
+  pegawai_id: string;
   name: string;
   masuk: string;
   pulang: string;
@@ -18,16 +21,7 @@ interface Employee {
   totalAbsen: number;
 }
 
-const MONITORING_DATA: Employee[] = [
-  { name: "Andi Pratama", masuk: "07:55", pulang: "16:05", status: "hadir", totalTerlambat: 2, totalAbsen: 0 },
-  { name: "Dewi Lestari", masuk: "08:15", pulang: "-", status: "terlambat", totalTerlambat: 5, totalAbsen: 1 },
-  { name: "Budi Cahyo", masuk: "07:50", pulang: "16:10", status: "hadir", totalTerlambat: 1, totalAbsen: 0 },
-  { name: "Rina Sari", masuk: "-", pulang: "-", status: "absen", totalTerlambat: 0, totalAbsen: 7 },
-  { name: "Fajar Nugroho", masuk: "08:30", pulang: "-", status: "terlambat", totalTerlambat: 6, totalAbsen: 0 },
-  { name: "Maya Putri", masuk: "08:00", pulang: "-", status: "hadir", totalTerlambat: 1, totalAbsen: 0 },
-];
-
-const BATAS_PELANGGARAN = 5; // Threshold for sanctions
+const BATAS_PELANGGARAN = 5;
 
 const JENIS_SANKSI = [
   { value: "teguran_lisan", label: "Teguran Lisan" },
@@ -42,32 +36,96 @@ const statusColor: Record<string, string> = {
   terlambat: "bg-warning/10 text-warning border-warning/20",
   cuti: "bg-primary/10 text-primary border-primary/20",
   absen: "bg-destructive/10 text-destructive border-destructive/20",
+  belum: "bg-muted text-muted-foreground",
 };
 
 const MonitoringKehadiran = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
+  const [employees, setEmployees] = useState<EmployeeMonitor[]>([]);
+  const [summary, setSummary] = useState({ hadir: 0, terlambat: 0, cuti: 0, absen: 0 });
   const [sanksiDialog, setSanksiDialog] = useState(false);
-  const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null);
+  const [selectedEmp, setSelectedEmp] = useState<EmployeeMonitor | null>(null);
   const [jenisSanksi, setJenisSanksi] = useState("");
   const [catatanSanksi, setCatatanSanksi] = useState("");
 
-  const isPelanggaran = (emp: Employee) => (emp.totalTerlambat + emp.totalAbsen) >= BATAS_PELANGGARAN;
+  useEffect(() => {
+    const fetchData = async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const monthStart = new Date();
+      monthStart.setDate(1);
 
-  const handleOpenSanksi = (emp: Employee) => {
+      // Get all pegawai
+      const { data: pegawaiList } = await supabase.from("pegawai").select("id, nama").eq("status", "aktif");
+      if (!pegawaiList) return;
+
+      // Get today's absensi
+      const { data: absensiToday } = await supabase
+        .from("absensi")
+        .select("pegawai_id, jam_masuk, jam_pulang, status")
+        .eq("tanggal", today);
+
+      // Get monthly stats for all
+      const { data: monthlyAbsensi } = await supabase
+        .from("absensi")
+        .select("pegawai_id, status")
+        .gte("tanggal", monthStart.toISOString().split("T")[0]);
+
+      const empList: EmployeeMonitor[] = pegawaiList.map(p => {
+        const todayData = absensiToday?.find(a => a.pegawai_id === p.id);
+        const monthData = monthlyAbsensi?.filter(a => a.pegawai_id === p.id) || [];
+        return {
+          pegawai_id: p.id,
+          name: p.nama,
+          masuk: todayData?.jam_masuk ? todayData.jam_masuk.substring(0, 5) : "-",
+          pulang: todayData?.jam_pulang ? todayData.jam_pulang.substring(0, 5) : "-",
+          status: todayData?.status || "belum",
+          totalTerlambat: monthData.filter(a => a.status === "terlambat").length,
+          totalAbsen: monthData.filter(a => a.status === "absen").length,
+        };
+      });
+
+      setEmployees(empList);
+
+      const h = empList.filter(e => e.status === "hadir").length;
+      const t = empList.filter(e => e.status === "terlambat").length;
+      const c = empList.filter(e => e.status === "cuti").length;
+      const a = empList.filter(e => e.status === "belum" || e.status === "absen").length;
+      setSummary({ hadir: h, terlambat: t, cuti: c, absen: a });
+    };
+    fetchData();
+  }, []);
+
+  const isPelanggaran = (emp: EmployeeMonitor) => (emp.totalTerlambat + emp.totalAbsen) >= BATAS_PELANGGARAN;
+
+  const handleOpenSanksi = (emp: EmployeeMonitor) => {
     setSelectedEmp(emp);
     setJenisSanksi("");
     setCatatanSanksi("");
     setSanksiDialog(true);
   };
 
-  const handleSimpanSanksi = () => {
-    if (!jenisSanksi) {
+  const handleSimpanSanksi = async () => {
+    if (!jenisSanksi || !selectedEmp) {
       toast({ title: "Pilih jenis sanksi", variant: "destructive" });
       return;
     }
+
+    const { error } = await supabase.from("sanksi").insert({
+      pegawai_id: selectedEmp.pegawai_id,
+      jenis_sanksi: jenisSanksi,
+      keterangan: catatanSanksi,
+      diberikan_oleh: user?.id,
+    });
+
+    if (error) {
+      toast({ title: "Gagal menyimpan sanksi", description: error.message, variant: "destructive" });
+      return;
+    }
+
     toast({
       title: "Sanksi Berhasil Disimpan",
-      description: `${JENIS_SANKSI.find(s => s.value === jenisSanksi)?.label} untuk ${selectedEmp?.name} telah disimpan. Notifikasi telah dikirim ke pegawai.`,
+      description: `${JENIS_SANKSI.find(s => s.value === jenisSanksi)?.label} untuk ${selectedEmp.name} telah disimpan. Notifikasi telah dikirim ke pegawai.`,
     });
     setSanksiDialog(false);
   };
@@ -76,23 +134,12 @@ const MonitoringKehadiran = () => {
     <div className="space-y-4">
       <h1 className="text-xl font-bold text-foreground">Monitoring Kehadiran</h1>
 
-      <Select defaultValue="today">
-        <SelectTrigger>
-          <SelectValue placeholder="Pilih periode" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="today">Hari Ini</SelectItem>
-          <SelectItem value="week">Minggu Ini</SelectItem>
-          <SelectItem value="month">Bulan Ini</SelectItem>
-        </SelectContent>
-      </Select>
-
       <div className="grid grid-cols-4 gap-2 text-center">
         {[
-          { label: "Hadir", val: 38, color: "text-success" },
-          { label: "Terlambat", val: 4, color: "text-warning" },
-          { label: "Cuti", val: 2, color: "text-primary" },
-          { label: "Absen", val: 1, color: "text-destructive" },
+          { label: "Hadir", val: summary.hadir, color: "text-success" },
+          { label: "Terlambat", val: summary.terlambat, color: "text-warning" },
+          { label: "Cuti", val: summary.cuti, color: "text-primary" },
+          { label: "Absen", val: summary.absen, color: "text-destructive" },
         ].map((s) => (
           <Card key={s.label}>
             <CardContent className="p-3">
@@ -104,26 +151,24 @@ const MonitoringKehadiran = () => {
       </div>
 
       <div className="space-y-2">
-        {MONITORING_DATA.map((emp, i) => (
-          <Card key={i} className={isPelanggaran(emp) ? "ring-2 ring-destructive/30" : ""}>
+        {employees.map((emp) => (
+          <Card key={emp.pegawai_id} className={isPelanggaran(emp) ? "ring-2 ring-destructive/30" : ""}>
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-foreground">{emp.name}</p>
                   <p className="text-xs text-muted-foreground">Masuk: {emp.masuk} | Pulang: {emp.pulang}</p>
                 </div>
-                <Badge variant="outline" className={statusColor[emp.status]}>
+                <Badge variant="outline" className={statusColor[emp.status] || ""}>
                   {emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}
                 </Badge>
               </div>
 
-              {/* Rekap pelanggaran */}
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span>Terlambat: <strong className="text-warning">{emp.totalTerlambat}x</strong></span>
                 <span>Absen: <strong className="text-destructive">{emp.totalAbsen}x</strong></span>
               </div>
 
-              {/* Tombol sanksi jika melebihi batas */}
               {isPelanggaran(emp) && (
                 <div className="flex items-center gap-2 pt-1">
                   <AlertTriangle className="h-4 w-4 text-destructive" />
@@ -144,7 +189,6 @@ const MonitoringKehadiran = () => {
         ))}
       </div>
 
-      {/* Dialog Pemberian Sanksi */}
       <Dialog open={sanksiDialog} onOpenChange={setSanksiDialog}>
         <DialogContent>
           <DialogHeader>
@@ -157,13 +201,10 @@ const MonitoringKehadiran = () => {
                 Terlambat: {selectedEmp?.totalTerlambat}x | Absen: {selectedEmp?.totalAbsen}x
               </p>
             </div>
-
             <div className="space-y-2">
               <Label>Jenis Sanksi</Label>
               <Select value={jenisSanksi} onValueChange={setJenisSanksi}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih jenis sanksi" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Pilih jenis sanksi" /></SelectTrigger>
                 <SelectContent>
                   {JENIS_SANKSI.map((s) => (
                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -171,7 +212,6 @@ const MonitoringKehadiran = () => {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Catatan</Label>
               <Textarea
