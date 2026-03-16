@@ -14,16 +14,273 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      absensi: {
+        Row: {
+          created_at: string
+          id: string
+          jam_masuk: string | null
+          jam_pulang: string | null
+          pegawai_id: string
+          status: string
+          tanggal: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          jam_masuk?: string | null
+          jam_pulang?: string | null
+          pegawai_id: string
+          status?: string
+          tanggal?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          jam_masuk?: string | null
+          jam_pulang?: string | null
+          pegawai_id?: string
+          status?: string
+          tanggal?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absensi_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cuti: {
+        Row: {
+          created_at: string
+          id: string
+          jenis: string | null
+          jumlah_hak: number
+          keterangan: string | null
+          pegawai_id: string
+          sisa_cuti: number
+          status: string
+          tahun: number
+          tanggal_mulai: string | null
+          tanggal_selesai: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          jenis?: string | null
+          jumlah_hak?: number
+          keterangan?: string | null
+          pegawai_id: string
+          sisa_cuti?: number
+          status?: string
+          tahun?: number
+          tanggal_mulai?: string | null
+          tanggal_selesai?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          jenis?: string | null
+          jumlah_hak?: number
+          keterangan?: string | null
+          pegawai_id?: string
+          sisa_cuti?: number
+          status?: string
+          tahun?: number
+          tanggal_mulai?: string | null
+          tanggal_selesai?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cuti_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jadwal: {
+        Row: {
+          created_at: string
+          hari_kerja: string
+          id: string
+          jam_masuk: string
+          jam_pulang: string
+          pegawai_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          hari_kerja: string
+          id?: string
+          jam_masuk?: string
+          jam_pulang?: string
+          pegawai_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          hari_kerja?: string
+          id?: string
+          jam_masuk?: string
+          jam_pulang?: string
+          pegawai_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jadwal_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      laporan: {
+        Row: {
+          created_at: string
+          data: Json | null
+          dibuat_oleh: string | null
+          id: string
+          periode: string
+          tanggal_cetak: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          dibuat_oleh?: string | null
+          id?: string
+          periode: string
+          tanggal_cetak?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          dibuat_oleh?: string | null
+          id?: string
+          periode?: string
+          tanggal_cetak?: string
+        }
+        Relationships: []
+      }
+      pegawai: {
+        Row: {
+          created_at: string
+          departemen: string
+          id: string
+          jabatan: string
+          masa_kerja: number
+          nama: string
+          status: string
+          tanggal_masuk: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          departemen?: string
+          id?: string
+          jabatan: string
+          masa_kerja?: number
+          nama: string
+          status?: string
+          tanggal_masuk?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          departemen?: string
+          id?: string
+          jabatan?: string
+          masa_kerja?: number
+          nama?: string
+          status?: string
+          tanggal_masuk?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      sanksi: {
+        Row: {
+          created_at: string
+          diberikan_oleh: string | null
+          id: string
+          jenis_sanksi: string
+          keterangan: string | null
+          pegawai_id: string
+          tanggal: string
+        }
+        Insert: {
+          created_at?: string
+          diberikan_oleh?: string | null
+          id?: string
+          jenis_sanksi: string
+          keterangan?: string | null
+          pegawai_id: string
+          tanggal?: string
+        }
+        Update: {
+          created_at?: string
+          diberikan_oleh?: string | null
+          id?: string
+          jenis_sanksi?: string
+          keterangan?: string | null
+          pegawai_id?: string
+          tanggal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sanksi_pegawai_id_fkey"
+            columns: ["pegawai_id"]
+            isOneToOne: false
+            referencedRelation: "pegawai"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "pegawai" | "admin" | "pimpinan"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +407,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["pegawai", "admin", "pimpinan"],
+    },
   },
 } as const
