@@ -315,6 +315,7 @@ const PegawaiDashboard = () => {
               )}
             </div>
           )}
+        </CardContent>
       </Card>
 
       <div className="grid grid-cols-3 gap-3">
