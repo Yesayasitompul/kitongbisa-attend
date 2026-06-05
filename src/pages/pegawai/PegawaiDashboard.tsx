@@ -12,10 +12,38 @@ const LOKASI = "Kantor Yayasan Kitongbisa";
 const PegawaiDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [todayAbsensi, setTodayAbsensi] = useState<{ jam_masuk: string | null; jam_pulang: string | null; status: string } | null>(null);
+  const [todayAbsensi, setTodayAbsensi] = useState<{ jam_masuk: string | null; jam_pulang: string | null; status: string; alamat_masuk?: string | null; alamat_pulang?: string | null; lat_masuk?: number | null; lng_masuk?: number | null; lat_pulang?: number | null; lng_pulang?: number | null } | null>(null);
   const [jadwal, setJadwal] = useState<{ jam_masuk: string; jam_pulang: string } | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [stats, setStats] = useState({ hadir: 0, terlambat: 0, absen: 0 });
+  const [loadingLocation, setLoadingLocation] = useState(false);
+
+  const getLocation = (): Promise<{ lat: number; lng: number; accuracy: number; alamat: string }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Browser tidak mendukung geolocation"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          let alamat = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`, {
+              headers: { "Accept-Language": "id" },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.display_name) alamat = data.display_name;
+            }
+          } catch (_) { /* ignore */ }
+          resolve({ lat: latitude, lng: longitude, accuracy, alamat });
+        },
+        (err) => reject(new Error(err.message || "Gagal mendapatkan lokasi")),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
+  };
 
   // Live clock
   useEffect(() => {
