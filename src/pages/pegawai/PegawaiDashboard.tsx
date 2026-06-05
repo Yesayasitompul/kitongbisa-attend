@@ -242,20 +242,20 @@ const PegawaiDashboard = () => {
       <div className="grid grid-cols-2 gap-3">
         <Button
           onClick={handleClockIn}
-          disabled={!!todayAbsensi?.jam_masuk}
+          disabled={!!todayAbsensi?.jam_masuk || loadingLocation}
           className="h-16 flex-col gap-1 bg-success hover:bg-success/90 text-success-foreground"
         >
           <LogIn className="h-5 w-5" />
-          <span className="text-xs font-medium">Absen Masuk</span>
+          <span className="text-xs font-medium">{loadingLocation && !todayAbsensi?.jam_masuk ? "Mengambil lokasi..." : "Absen Masuk"}</span>
         </Button>
         <Button
           onClick={handleClockOut}
-          disabled={!todayAbsensi?.jam_masuk || !!todayAbsensi?.jam_pulang}
+          disabled={!todayAbsensi?.jam_masuk || !!todayAbsensi?.jam_pulang || loadingLocation}
           variant="outline"
           className="h-16 flex-col gap-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
         >
           <LogOut className="h-5 w-5" />
-          <span className="text-xs font-medium">Absen Pulang</span>
+          <span className="text-xs font-medium">{loadingLocation && todayAbsensi?.jam_masuk && !todayAbsensi?.jam_pulang ? "Mengambil lokasi..." : "Absen Pulang"}</span>
         </Button>
       </div>
 
