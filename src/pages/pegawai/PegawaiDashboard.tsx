@@ -289,7 +289,32 @@ const PegawaiDashboard = () => {
               )}
             </div>
           )}
-        </CardContent>
+          {(todayAbsensi?.alamat_masuk || todayAbsensi?.alamat_pulang) && (
+            <div className="space-y-2 border-t border-border pt-3">
+              {todayAbsensi?.alamat_masuk && (
+                <a
+                  href={`https://www.google.com/maps?q=${todayAbsensi.lat_masuk},${todayAbsensi.lng_masuk}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs text-muted-foreground hover:text-primary"
+                >
+                  <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-success" />
+                  <span><strong className="text-foreground">Masuk:</strong> {todayAbsensi.alamat_masuk}</span>
+                </a>
+              )}
+              {todayAbsensi?.alamat_pulang && (
+                <a
+                  href={`https://www.google.com/maps?q=${todayAbsensi.lat_pulang},${todayAbsensi.lng_pulang}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs text-muted-foreground hover:text-primary"
+                >
+                  <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-destructive" />
+                  <span><strong className="text-foreground">Pulang:</strong> {todayAbsensi.alamat_pulang}</span>
+                </a>
+              )}
+            </div>
+          )}
       </Card>
 
       <div className="grid grid-cols-3 gap-3">
