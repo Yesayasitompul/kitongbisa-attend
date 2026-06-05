@@ -12,10 +12,38 @@ const LOKASI = "Kantor Yayasan Kitongbisa";
 const PegawaiDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [todayAbsensi, setTodayAbsensi] = useState<{ jam_masuk: string | null; jam_pulang: string | null; status: string } | null>(null);
+  const [todayAbsensi, setTodayAbsensi] = useState<{ jam_masuk: string | null; jam_pulang: string | null; status: string; alamat_masuk?: string | null; alamat_pulang?: string | null; lat_masuk?: number | null; lng_masuk?: number | null; lat_pulang?: number | null; lng_pulang?: number | null } | null>(null);
   const [jadwal, setJadwal] = useState<{ jam_masuk: string; jam_pulang: string } | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [stats, setStats] = useState({ hadir: 0, terlambat: 0, absen: 0 });
+  const [loadingLocation, setLoadingLocation] = useState(false);
+
+  const getLocation = (): Promise<{ lat: number; lng: number; accuracy: number; alamat: string }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Browser tidak mendukung geolocation"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          let alamat = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`, {
+              headers: { "Accept-Language": "id" },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.display_name) alamat = data.display_name;
+            }
+          } catch (_) { /* ignore */ }
+          resolve({ lat: latitude, lng: longitude, accuracy, alamat });
+        },
+        (err) => reject(new Error(err.message || "Gagal mendapatkan lokasi")),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
+  };
 
   // Live clock
   useEffect(() => {
@@ -94,6 +122,17 @@ const PegawaiDashboard = () => {
 
   const handleClockIn = async () => {
     if (!user?.pegawaiId) return;
+    setLoadingLocation(true);
+    let lokasi;
+    try {
+      lokasi = await getLocation();
+    } catch (e: any) {
+      setLoadingLocation(false);
+      toast({ title: "Gagal mendapatkan lokasi", description: e.message + ". Mohon izinkan akses lokasi.", variant: "destructive" });
+      return;
+    }
+    setLoadingLocation(false);
+
     const now = new Date();
     const timeNow = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const isTerlambat = checkTerlambat(now);
@@ -105,6 +144,10 @@ const PegawaiDashboard = () => {
       tanggal: today,
       jam_masuk: jamMasukDb,
       status: isTerlambat ? "terlambat" : "hadir",
+      lat_masuk: lokasi.lat,
+      lng_masuk: lokasi.lng,
+      akurasi_masuk: lokasi.accuracy,
+      alamat_masuk: lokasi.alamat,
     }, { onConflict: "pegawai_id,tanggal" });
 
     if (error) {
@@ -112,24 +155,28 @@ const PegawaiDashboard = () => {
       return;
     }
 
-    setTodayAbsensi({ jam_masuk: jamMasukDb, jam_pulang: null, status: isTerlambat ? "terlambat" : "hadir" });
+    setTodayAbsensi({ jam_masuk: jamMasukDb, jam_pulang: null, status: isTerlambat ? "terlambat" : "hadir", alamat_masuk: lokasi.alamat, lat_masuk: lokasi.lat, lng_masuk: lokasi.lng });
 
-    if (isTerlambat) {
-      toast({
-        title: "Absensi Masuk - Terlambat",
-        description: `Tercatat masuk pukul ${timeNow}. Anda terlambat dari jadwal ${jamMasukJadwal}. Notifikasi telah dikirim ke HR.`,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Absensi Masuk Berhasil",
-        description: `Tercatat masuk pukul ${timeNow}. Status: Hadir tepat waktu.`,
-      });
-    }
+    toast({
+      title: isTerlambat ? "Absensi Masuk - Terlambat" : "Absensi Masuk Berhasil",
+      description: `Pukul ${timeNow} • Lokasi: ${lokasi.alamat}`,
+      variant: isTerlambat ? "destructive" : "default",
+    });
   };
 
   const handleClockOut = async () => {
     if (!user?.pegawaiId) return;
+    setLoadingLocation(true);
+    let lokasi;
+    try {
+      lokasi = await getLocation();
+    } catch (e: any) {
+      setLoadingLocation(false);
+      toast({ title: "Gagal mendapatkan lokasi", description: e.message + ". Mohon izinkan akses lokasi.", variant: "destructive" });
+      return;
+    }
+    setLoadingLocation(false);
+
     const now = new Date();
     const timeNow = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const today = now.toISOString().split("T")[0];
@@ -137,7 +184,13 @@ const PegawaiDashboard = () => {
 
     const { error } = await supabase
       .from("absensi")
-      .update({ jam_pulang: jamPulangDb })
+      .update({
+        jam_pulang: jamPulangDb,
+        lat_pulang: lokasi.lat,
+        lng_pulang: lokasi.lng,
+        akurasi_pulang: lokasi.accuracy,
+        alamat_pulang: lokasi.alamat,
+      })
       .eq("pegawai_id", user.pegawaiId)
       .eq("tanggal", today);
 
@@ -146,8 +199,8 @@ const PegawaiDashboard = () => {
       return;
     }
 
-    setTodayAbsensi(prev => prev ? { ...prev, jam_pulang: jamPulangDb } : null);
-    toast({ title: "Absensi Pulang Berhasil", description: `Tercatat pulang pukul ${timeNow}. Data absensi telah disimpan.` });
+    setTodayAbsensi(prev => prev ? { ...prev, jam_pulang: jamPulangDb, alamat_pulang: lokasi.alamat, lat_pulang: lokasi.lat, lng_pulang: lokasi.lng } : null);
+    toast({ title: "Absensi Pulang Berhasil", description: `Pukul ${timeNow} • Lokasi: ${lokasi.alamat}` });
   };
 
   const formatTime = (t: string | null) => t ? t.substring(0, 5) : "--:--";
@@ -189,20 +242,20 @@ const PegawaiDashboard = () => {
       <div className="grid grid-cols-2 gap-3">
         <Button
           onClick={handleClockIn}
-          disabled={!!todayAbsensi?.jam_masuk}
+          disabled={!!todayAbsensi?.jam_masuk || loadingLocation}
           className="h-16 flex-col gap-1 bg-success hover:bg-success/90 text-success-foreground"
         >
           <LogIn className="h-5 w-5" />
-          <span className="text-xs font-medium">Absen Masuk</span>
+          <span className="text-xs font-medium">{loadingLocation && !todayAbsensi?.jam_masuk ? "Mengambil lokasi..." : "Absen Masuk"}</span>
         </Button>
         <Button
           onClick={handleClockOut}
-          disabled={!todayAbsensi?.jam_masuk || !!todayAbsensi?.jam_pulang}
+          disabled={!todayAbsensi?.jam_masuk || !!todayAbsensi?.jam_pulang || loadingLocation}
           variant="outline"
           className="h-16 flex-col gap-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
         >
           <LogOut className="h-5 w-5" />
-          <span className="text-xs font-medium">Absen Pulang</span>
+          <span className="text-xs font-medium">{loadingLocation && todayAbsensi?.jam_masuk && !todayAbsensi?.jam_pulang ? "Mengambil lokasi..." : "Absen Pulang"}</span>
         </Button>
       </div>
 
@@ -233,6 +286,32 @@ const PegawaiDashboard = () => {
                   <span className="text-muted-foreground">Kehadiran tercatat</span>
                   <Badge variant="secondary" className="ml-auto">Hadir</Badge>
                 </>
+              )}
+            </div>
+          )}
+          {(todayAbsensi?.alamat_masuk || todayAbsensi?.alamat_pulang) && (
+            <div className="space-y-2 border-t border-border pt-3">
+              {todayAbsensi?.alamat_masuk && (
+                <a
+                  href={`https://www.google.com/maps?q=${todayAbsensi.lat_masuk},${todayAbsensi.lng_masuk}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs text-muted-foreground hover:text-primary"
+                >
+                  <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-success" />
+                  <span><strong className="text-foreground">Masuk:</strong> {todayAbsensi.alamat_masuk}</span>
+                </a>
+              )}
+              {todayAbsensi?.alamat_pulang && (
+                <a
+                  href={`https://www.google.com/maps?q=${todayAbsensi.lat_pulang},${todayAbsensi.lng_pulang}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 text-xs text-muted-foreground hover:text-primary"
+                >
+                  <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-destructive" />
+                  <span><strong className="text-foreground">Pulang:</strong> {todayAbsensi.alamat_pulang}</span>
+                </a>
               )}
             </div>
           )}

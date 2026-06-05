@@ -16,30 +16,54 @@ export type Database = {
     Tables: {
       absensi: {
         Row: {
+          akurasi_masuk: number | null
+          akurasi_pulang: number | null
+          alamat_masuk: string | null
+          alamat_pulang: string | null
           created_at: string
           id: string
           jam_masuk: string | null
           jam_pulang: string | null
+          lat_masuk: number | null
+          lat_pulang: number | null
+          lng_masuk: number | null
+          lng_pulang: number | null
           pegawai_id: string
           status: string
           tanggal: string
           updated_at: string
         }
         Insert: {
+          akurasi_masuk?: number | null
+          akurasi_pulang?: number | null
+          alamat_masuk?: string | null
+          alamat_pulang?: string | null
           created_at?: string
           id?: string
           jam_masuk?: string | null
           jam_pulang?: string | null
+          lat_masuk?: number | null
+          lat_pulang?: number | null
+          lng_masuk?: number | null
+          lng_pulang?: number | null
           pegawai_id: string
           status?: string
           tanggal?: string
           updated_at?: string
         }
         Update: {
+          akurasi_masuk?: number | null
+          akurasi_pulang?: number | null
+          alamat_masuk?: string | null
+          alamat_pulang?: string | null
           created_at?: string
           id?: string
           jam_masuk?: string | null
           jam_pulang?: string | null
+          lat_masuk?: number | null
+          lat_pulang?: number | null
+          lng_masuk?: number | null
+          lng_pulang?: number | null
           pegawai_id?: string
           status?: string
           tanggal?: string
