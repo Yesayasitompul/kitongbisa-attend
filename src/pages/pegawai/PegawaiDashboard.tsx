@@ -122,6 +122,17 @@ const PegawaiDashboard = () => {
 
   const handleClockIn = async () => {
     if (!user?.pegawaiId) return;
+    setLoadingLocation(true);
+    let lokasi;
+    try {
+      lokasi = await getLocation();
+    } catch (e: any) {
+      setLoadingLocation(false);
+      toast({ title: "Gagal mendapatkan lokasi", description: e.message + ". Mohon izinkan akses lokasi.", variant: "destructive" });
+      return;
+    }
+    setLoadingLocation(false);
+
     const now = new Date();
     const timeNow = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const isTerlambat = checkTerlambat(now);
@@ -133,6 +144,10 @@ const PegawaiDashboard = () => {
       tanggal: today,
       jam_masuk: jamMasukDb,
       status: isTerlambat ? "terlambat" : "hadir",
+      lat_masuk: lokasi.lat,
+      lng_masuk: lokasi.lng,
+      akurasi_masuk: lokasi.accuracy,
+      alamat_masuk: lokasi.alamat,
     }, { onConflict: "pegawai_id,tanggal" });
 
     if (error) {
@@ -140,24 +155,28 @@ const PegawaiDashboard = () => {
       return;
     }
 
-    setTodayAbsensi({ jam_masuk: jamMasukDb, jam_pulang: null, status: isTerlambat ? "terlambat" : "hadir" });
+    setTodayAbsensi({ jam_masuk: jamMasukDb, jam_pulang: null, status: isTerlambat ? "terlambat" : "hadir", alamat_masuk: lokasi.alamat, lat_masuk: lokasi.lat, lng_masuk: lokasi.lng });
 
-    if (isTerlambat) {
-      toast({
-        title: "Absensi Masuk - Terlambat",
-        description: `Tercatat masuk pukul ${timeNow}. Anda terlambat dari jadwal ${jamMasukJadwal}. Notifikasi telah dikirim ke HR.`,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Absensi Masuk Berhasil",
-        description: `Tercatat masuk pukul ${timeNow}. Status: Hadir tepat waktu.`,
-      });
-    }
+    toast({
+      title: isTerlambat ? "Absensi Masuk - Terlambat" : "Absensi Masuk Berhasil",
+      description: `Pukul ${timeNow} • Lokasi: ${lokasi.alamat}`,
+      variant: isTerlambat ? "destructive" : "default",
+    });
   };
 
   const handleClockOut = async () => {
     if (!user?.pegawaiId) return;
+    setLoadingLocation(true);
+    let lokasi;
+    try {
+      lokasi = await getLocation();
+    } catch (e: any) {
+      setLoadingLocation(false);
+      toast({ title: "Gagal mendapatkan lokasi", description: e.message + ". Mohon izinkan akses lokasi.", variant: "destructive" });
+      return;
+    }
+    setLoadingLocation(false);
+
     const now = new Date();
     const timeNow = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const today = now.toISOString().split("T")[0];
@@ -165,7 +184,13 @@ const PegawaiDashboard = () => {
 
     const { error } = await supabase
       .from("absensi")
-      .update({ jam_pulang: jamPulangDb })
+      .update({
+        jam_pulang: jamPulangDb,
+        lat_pulang: lokasi.lat,
+        lng_pulang: lokasi.lng,
+        akurasi_pulang: lokasi.accuracy,
+        alamat_pulang: lokasi.alamat,
+      })
       .eq("pegawai_id", user.pegawaiId)
       .eq("tanggal", today);
 
@@ -174,8 +199,8 @@ const PegawaiDashboard = () => {
       return;
     }
 
-    setTodayAbsensi(prev => prev ? { ...prev, jam_pulang: jamPulangDb } : null);
-    toast({ title: "Absensi Pulang Berhasil", description: `Tercatat pulang pukul ${timeNow}. Data absensi telah disimpan.` });
+    setTodayAbsensi(prev => prev ? { ...prev, jam_pulang: jamPulangDb, alamat_pulang: lokasi.alamat, lat_pulang: lokasi.lat, lng_pulang: lokasi.lng } : null);
+    toast({ title: "Absensi Pulang Berhasil", description: `Pukul ${timeNow} • Lokasi: ${lokasi.alamat}` });
   };
 
   const formatTime = (t: string | null) => t ? t.substring(0, 5) : "--:--";
